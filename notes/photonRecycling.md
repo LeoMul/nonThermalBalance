@@ -2,10 +2,10 @@
 
 For a fraction of element $X$ in $X^{i+}$ denoted by $f_i$, the dynamics of the ionization looks something like:
 $$
-\begin{align}
+\begin{aligned}
     \frac{d f_i}{dt} = &f_{i-1}\mathcal{I}_{i \to i+1} +f_{i+1}\mathcal{R}_{i+1 \to i}\\
      -&f_i \mathcal{I}_{i \to i+1} -f_i\mathcal{R}_{i \to i-1},
-\end{align}
+\end{aligned}
 $$
 for $0\leq i \leq Z-1$. Under the condition $\frac{d f_i}{dt} = 0$ and performing cumulative sums (or inverting a tri-diagonal matrix) gives balance of each of the individual channels,
 
