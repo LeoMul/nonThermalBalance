@@ -3,32 +3,27 @@
 For a fraction of element $X$ in $X^{i+}$ denoted by $f_i$, the dynamics of the ionization looks something like:
 
 $$
-\begin{aligned}
-    \frac{d f_i}{dt} = &f_{i-1}\mathcal{I}_{i \to i+1} +f_{i+1}\mathcal{R}_{i+1 \to i}\\
-     -&f_i \mathcal{I}_{i \to i+1} -f_i\mathcal{R}_{i \to i-1},
-\end{aligned}
+    \frac{d f_i}{dt} = f_{i-1}\mathcal{I}_{i \to i+1} +f_{i+1}\mathcal{R}_{i+1 \to i} -f_i \mathcal{I}_{i \to i+1} -f_i\mathcal{R}_{i \to i-1},
 $$
 
 for $0\leq i \leq Z-1$. Under the condition $\frac{d f_i}{dt} = 0$ and performing cumulative sums (or inverting a tri-diagonal matrix) gives balance of each of the individual channels,
 
-\begin{align}
-f_i \mathcal{I}_{i \to i+1} &= f_{i+1}\mathcal{R}_{i+1 \to i} \\
-\implies f_{i+1}  & = \frac{\mathcal{I}_{i \to i+1}}{\mathcal{R}_{i+1 \to i}} f_i
-\end{align}
+$$
+f_i \mathcal{I}_{i \to i+1} = f_{i+1}\mathcal{R}_{i+1 \to i}, 
+\implies f_{i+1}   = \frac{\mathcal{I}_{i \to i+1}}{\mathcal{R}_{i+1 \to i}} f_i,
+$$
 
-which combined with the constraint $\sum_i f_i = 1$ gives the balance.
+which combined with the constraint $\sum_i f_i = 1$ gives the balance. Suppose now we wanted to account for the impact of recombination photons internally photoionizing the plasma. We model the rate of photoionization from a recombination photon as something like,
 
-Suppose now we wanted to account for the impact of recombination photons internally photoionizing the plasma. 
-
-We model the rate of photoionization from a recombination photon as something like,
 $$
 P_{ij} f_{j+1} \mathcal{R}_{j+1 \to j},
 $$
+
 where the photon emitted from $X^{(j+1)+} \to X^{j+} + h\nu_j$ has probability $P_{ij}$ of resulting in a photoionization of $X^{i+}$. The ionization dynamics look something now like
 
-\begin{align*}
-    \frac{d f_i}{dt} =  & f_{i-1}\mathcal{I}_{i \to i+1} + f_{i+1} (1-P_{i,i})\mathcal{R}_{i+1 \to i} + \sum_{j>{i-1}}P_{i-1,j}\mathcal{R}_{j+1 \to j}f_{j+1} \\ - & f_i \mathcal{I}_{i \to i+1} -  f_i (1-P_{i-1,i-1})\mathcal{R}_{i \to i-1} - \sum_{j>i}P_{ij} \mathcal{R}_{j+1 \to j}f_{j+1}   ,
-\end{align*}
+$$
+    \frac{d f_i}{dt} =   f_{i-1}\mathcal{I}_{i \to i+1} + f_{i+1} (1-P_{i,i})\mathcal{R}_{i+1 \to i} + \sum_{j>{i-1}}P_{i-1,j}\mathcal{R}_{j+1 \to j}f_{j+1} \\ -  f_i \mathcal{I}_{i \to i+1} -  f_i (1-P_{i-1,i-1})\mathcal{R}_{i \to i-1} - \sum_{j>i}P_{ij} \mathcal{R}_{j+1 \to j}f_{j+1}   ,
+$$
 
 where the gain and loss terms from adjacent recombinations must now be modulated by one minus the probability of self-photoionization. There is an additionally an extra gain and loss term from the photoionization by photons non-adjacent recombinations. 
 
