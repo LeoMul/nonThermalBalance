@@ -28,13 +28,16 @@ $$
 where the gain and loss terms from adjacent recombinations must now be modulated by one minus the probability of self-photoionization. There is an additionally an extra gain and loss term from the photoionization by photons non-adjacent recombinations. 
 
 Again, we can take the partial sums in the steady state,
-\begin{equation}
+
+$$
 \sum_{k=0}^{i} \frac{d f_k}{dt} = 0,
-\end{equation}
+$$
+
 to arrive at the new set of equations
-\begin{equation}
+
+$$
 f_i \mathcal{I}_{i \to i+1} = f_{i+1} (1-P_{ii})\mathcal{R}_{i+1 \to i} - \sum_{j>i}P_{ij} \mathcal{R}_{j+1 \to j}f_{j+1},
-\end{equation}
+$$
 
 which can be implictly inverted as 
 
