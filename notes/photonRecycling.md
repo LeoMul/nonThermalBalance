@@ -39,17 +39,17 @@ $$
 f_i \mathcal{I}_{i \to i+1} = f_{i+1} (1-P_{ii})\mathcal{R}_{i+1 \to i} - \sum_{j>i}P_{ij} \mathcal{R}_{j+1 \to j}f_{j+1},
 $$
 
-which can be implictly inverted as 
+which can be implicitly inverted as 
 
-\begin{equation}
+$$
 f_{i+1} = \frac{f_i \mathcal{I}_{i \to i+1} + \sum_{j>i}P_{ij} \mathcal{R}_{j+1 \to j}f_{j+1}}{(1-P_{ii})\mathcal{R}_{i+1 \to i}}.
-\end{equation}
+$$
 
 Which can be solved iteratively. For example, first solve the rate equations with $P_{ij}=0$ to obtain some initial ionization balance $f^{(0)}_i$ and calculate the probabilities $P^{(0)}_{ij}$. Then at iteration $k$, 
 
-\begin{equation}
+$$
 f^{(k+1)}_{i+1} = \frac{f^{(k+1)}_i \mathcal{I}_{i \to i+1} + \sum_{j>i}P^{(k)}_{ij} \mathcal{R}_{j+1 \to j}f^{(k)}_{j+1}}{(1-P^{(k)}_{ii})\mathcal{R}_{i+1 \to i}}.
-\end{equation}
+$$
 
 What remains is to calculate the probabilities $P_{ij}$.
 
@@ -87,4 +87,5 @@ Note that in the optically thick limit of $\tau_j >> 1$, we have
 $$
 \sum_{i=0}^z P_{ij} = \phi_R \sum_i \frac{f_i \sigma_{i}(h\nu_j)}{\sum_{k=0}^j  f_k\sigma_k(h\nu_j)}(1 - e^{-\tau_j}) \phi_R  = (1 - e^{-\tau_j}) \phi_R\sum_{i=0}^z \frac{f_i \sigma_{i}(h\nu_j)}{\sum_{k=0}^z  f_k\sigma_k(h\nu_j)}=(1 - e^{-\tau_j}) \phi_R \to_{\tau_j\to\infty} \phi_R,
 $$
+
 which is to say that the recombination event $X^{(j+1)+} \to X^{j+} + h\nu_j$ has probability $(1 - e^{-\tau_j})\phi_R$ of photoionizing _something_.
