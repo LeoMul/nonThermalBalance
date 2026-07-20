@@ -1,3 +1,4 @@
+import numpy as np 
 import astropy.units as u 
 
 def heatingKasenBarnes(time_exp_days,averageAtomMass = 140,powerLaw = -1.3):

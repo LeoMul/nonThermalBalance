@@ -1,5 +1,7 @@
 import sys
 import os 
+
+#hack to use my fork of pynonthermal - 
 MODULE_PATH = os.path.abspath("/Users/leomulholland/pynonthermal-fork/")
 
 if MODULE_PATH not in sys.path:
@@ -15,6 +17,7 @@ import periodictable
 from scipy.interpolate import interp1d
 from input import input
 from heating import * 
+from ionizationBalance import * 
 from axelrod_recombination import * 
 import json 
 import argparse
@@ -53,23 +56,23 @@ class nonThermalBalance:
     def __init__(self,input: input,outfile_suffix = ''):
         
         #Transfer memory we might need. 
-        self.input                      = input
-        self.listOfAtomicNumbers        = input.listOfAtomicNumbers
-        self.pathsOfRecombinationData   = input.pathsOfRecombinationData
-        self.thermalElectronTemperature = input.thermalElectronTemperature
-        self.imposedElectronDensitySF     = input.imposedElectronDensitySF
-        self.velocityExpansionC         = input.velocityExpansionC
-        self.timeSinceExplosionDays     = input.timeSinceExplosionDays
-        self.massesOfElements           = input.massesOfElements
-        self.averageAtomicMass          = input.averageAtomicMass
-        self.maxIonizationPlus              = input.maxIonizationPlus
-        self.depositionOverride         = input.depositionOverride
-        self.velocityMaxForEfficiency   = input.velocityMaxForEfficiency
-        self.numberOfElements = len(input.listOfAtomicNumbers)
-        self.depositionMode             = input.depositionMode
+        self.input                               = input
+        self.listOfAtomicNumbers                 = input.listOfAtomicNumbers
+        self.pathsOfRecombinationData            = input.pathsOfRecombinationData
+        self.thermalElectronTemperature          = input.thermalElectronTemperature
+        self.imposedElectronDensitySF            = input.imposedElectronDensitySF
+        self.velocityExpansionC                  = input.velocityExpansionC
+        self.timeSinceExplosionDays              = input.timeSinceExplosionDays
+        self.massesOfElements                    = input.massesOfElements
+        self.averageAtomicMass                   = input.averageAtomicMass
+        self.maxIonizationPlus                   = input.maxIonizationPlus
+        self.depositionOverride                  = input.depositionOverride
+        self.velocityMaxForEfficiency            = input.velocityMaxForEfficiency
+        self.numberOfElements                    = len(input.listOfAtomicNumbers)
+        self.depositionMode                      = input.depositionMode
         self.imposedElectronDensityRecombination = input.imposedElectronDensityRecombination
-        self.outfile = open(f'pynt-balance-{outfile_suffix}.out','w')
-        self.depfactor                  = input.depfactor
+        self.outfile                             = open(f'pynt-balance-{outfile_suffix}.out','w')
+        self.depfactor                           = input.depfactor
         
         
         #i.e if 1+ is our max ion, we have 0+ and 1+ included in the model.
@@ -96,7 +99,6 @@ class nonThermalBalance:
         counter = 0 
         for ii in range(0,self.numberOfElements):
             for jj in range(0,self.numRatesPerElement):
-                #axelrodrate = self.RecombinationAxelrodModified(jj+1)
                 axelrodrate = RRAxelrodTotal(self.thermalElectronTemperature,jj+1)
                 if self.pathsOfRecombinationData[counter] == None:
                     rate = axelrodrate
@@ -153,7 +155,7 @@ class nonThermalBalance:
         for aa,zz in enumerate(self.listOfAtomicNumbers):
             self.outfile.write(f'{zz:3} {self.elementNumberDensities[aa]:10.2e}\n')
         
-        self.balance = self.initBalance.copy()
+        self.balance     = self.initBalance.copy()
         self.ionFraction = self.initFraction.copy()
         return None 
             
@@ -203,12 +205,12 @@ class nonThermalBalance:
             ff = self.depfactor
             self.outfile.write(f'   Multipyling by factor: {ff} \n')
 
-        
         self.depositionratedensity_ev  = self.heatingRate * self.elementNumberDensityTotal * self.thermalizationEfficiency * ff
         try:
             self.depositionratedensity_ev = self.depositionratedensity_ev.value 
         except:
             pass
+        
         return None 
     
     def _artisDataDeposition(self):
@@ -232,35 +234,7 @@ class nonThermalBalance:
 
         return None 
     
-    def setNewBalanceDamped(self):
-        '''
-        dumb method - to be removed.
-        '''
-        
-        self.outfile.write('damping new ion balance...\n')
-        self.damp = 0.2
-        stride = self.maxIonizationPlus
-        self.ionFraction = (1.0 - self.damp) * self.ionFraction + self.damp*self.ionFractionOld 
-        #renormalize
-        self.actualElectronDensity = 0.0 
-        for aa,z in enumerate(self.listOfAtomicNumbers):
-            thisfrac = self.ionFraction[aa * stride : (aa+1) * stride ] 
-            thisnorm = thisfrac.sum()
-            thisfrac/= thisnorm
-            self.ionFraction[aa * stride : (aa+1) * stride ] = thisfrac
-            self.balance[aa * stride : (aa+1) * stride ]  = thisfrac * self.elementNumberDensities[aa]
-            self.actualElectronDensity += np.sum ( np.arange(0,self.maxIonizationPlus,1,dtype=int) * thisfrac * self.elementNumberDensities[aa])
-        return None
-    
-    def RecombinationAxelrodModified(self,totalCharge):
-        '''
-        Axelrod (1980) recombination rate boosted by a factor. 
-        Gives slightly better agreement for DR included rates. 
-        In principal, one should use calculated rates where available.
-        '''
-        
-        
-        return 10 * (totalCharge)**2 * RRAxelrodTotal(self.thermalElectronTemperature, totalCharge)
+
     
     def ionIter(self):
         '''
@@ -286,7 +260,7 @@ class nonThermalBalance:
         
         return None 
     
-    def ionizationBalance(self):
+    def calcNewionizationBalance(self):
         #Calculate a new Ionization balance.
         self.balanceOld = self.balance.copy()
         self.ionFractionOld = self.ionFraction.copy() 
@@ -324,7 +298,6 @@ class nonThermalBalance:
         return self.converged
     
     def runSpencerFano(self):
-        import time 
         
         #Runs Luke Shingles' Spencer-Fano solver.
         #
@@ -333,6 +306,8 @@ class nonThermalBalance:
         self.ionizationRatesOld = self.ionizationRates
         ions = []
         counter = 0 
+        
+        #Make array of ionization stages.
         for atomicNumber in self.listOfAtomicNumbers:
             for ii in range(0,self.numberIonStagesPerElement):
                 ions.append(
@@ -342,9 +317,8 @@ class nonThermalBalance:
         
         #Pass this array to initialize the Spencer-Fano solver.
         
-        
         #t = time.time()
-        self.sf = pynonthermal.SpencerFanoSolver(emin_ev=1, emax_ev=3000, npts=1000, verbose=False)
+        self.sf = pynonthermal.SpencerFanoSolver(emin_ev=1, emax_ev=3000, npts=400, verbose=False)
         #print('time in initialization = ',time.time()-t)
         
         #t = time.time()
@@ -451,7 +425,7 @@ class nonThermalBalance:
         
 
 def elementDensity(elementNumber,ion_mass_solar,velocity_c,explosion_time_days):
-    #Calculates rough density assuming a Homologous expansion of 0 to velocity_c
+    #Calculates rough density assuming a spherical expansion of 0 to velocity_c
     fourthirdspi = 4.0 * np.pi  / 3.0 
 
     atomic_mass = periodictable.elements[elementNumber].mass * u.u
@@ -466,73 +440,13 @@ def elementDensity(elementNumber,ion_mass_solar,velocity_c,explosion_time_days):
     ionNumberDensity = nparticles / expansion_volume
     ionMassDensity   = (ion_mass  / expansion_volume).to('g/cm^3')
     
-    #print(nparticles,v,t,expansion_volume,ionDensity)
     
     return ionNumberDensity.value,ionMassDensity.value, nparticles.value,expansion_volume.value
 
 
 
-def ionizationBalance(ionization_rates, recombination_rates,atomicNumber):
-    ''' 
-    Coronal ionization balance. 
-    I.e - only consider:
-        - ionization    out of ground into all adjacent states
-        - recombination out of ground into all adjacent states
-    
-    ionization_rates   [i] = rate of ionization    from i   to i+1 
-    recombination_rates[i] = rate of recombination from i+1 to i    
-    
-    pads out the balance, by assuming the ionization decreases 
-    geometrically from the last explicitly calculated and that the 
-    recombination increases geometrically. 
-    
-    assuming a factor of 2 drop off/increase - the balance drops off with factor 4.
-    '''    
-    populations = np.zeros(len(ionization_rates)+1)
-    populations[0] = 1.0
-    for z in range(0,len(ionization_rates)):
-        populations[z+1] = populations[z] * ionization_rates[z] / recombination_rates[z]
-    
-    pp = populations[-1]
-    norm = populations.sum()
-    current = pp 
-    totalarray = [*populations]
-    for z in range(len(ionization_rates),atomicNumber):
-        current = current * 0.25 
-        norm += current 
-        totalarray.append(current)
-    
-    totalarray = np.array(totalarray)
-    totalarray /= norm
-    populations = populations / norm
-    
-    return populations
 
 
-
-
-'''
-def getSFSolution(ionizationBalance):
-    totalIonDensity = ionDensity(atomicNumber,massElement,velocityExpansionLight,timeSinceExplosionDays)
-    ionBalanceDensity = totalIonDensity * ionizationBalance
-    ions = []
-    for ii,dens in enumerate(ionBalanceDensity):
-        ions.append( (atomicNumber,ii+1,dens) )
-    sf = pynonthermal.SpencerFanoSolver(emin_ev=1, emax_ev=3000, npts=2000, verbose=False)
-    for Z, ion_stage, n_ion in ions:
-        sf.add_ionisation(Z, ion_stage, n_ion.value)
-    depositionratedensity_ev = heatingKasenBarnes(timeSinceExplosionDays).value * totalIonDensity.value
-    sf.solve(depositionratedensity_ev = depositionratedensity_ev ,override_n_e=densityElectronsImposed)
-    sf.analyse_ntspectrum()
-    
-    numIncludedInSF = len(ionBalanceInitial)
-    ionizationRates = np.zeros(atomicNumber)
-    for ii in range(0,numIncludedInSF):
-        ionizationRates[ii] = sf.get_ionisation_ratecoeff(58, ii+1)
-    for ii in range(numIncludedInSF,atomicNumber):
-        ionizationRates[ii] = 0.5 * ionizationRates[ii-1]
-    return sf, ionizationRates
-'''
 
 def main():
     parser = argparse.ArgumentParser()
@@ -550,7 +464,7 @@ def main():
         
         ntb.outfile.write('Iter 1\n')
         ntb.runSpencerFano()
-        ntb.ionizationBalance()
+        ntb.calcNewionizationBalance()
         
         if ntb.input.selfConsistent:
             nehistory = []
@@ -560,7 +474,7 @@ def main():
                 
                 ntb.runSpencerFano()
 
-                ntb.ionizationBalance()
+                ntb.calcNewionizationBalance()
                 nehistory.append(ntb.electronDensity)
                 #ntb.setNewBalanceDamped()
                 
@@ -576,13 +490,12 @@ def main():
                     neNew = n2 - (n2 -n1)**2 / dd 
                     ntb.electronDensity = neNew
                     ntb.outfile.write(f'Aitken jump {n0:10.2e}{n1:10.2e}{n2:10.2e}{neNew:10.2e}\n')
-                    ntb.ionizationBalance()
+                    ntb.calcNewionizationBalance()
                     nehistory = []
                 ntb.checkConvergence()
 
                 if ntb.converged:
                     break
-        
         
         
         ntb.writeOutBalanceAndRates(fileSuffix=args.json)
