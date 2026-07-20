@@ -17,7 +17,8 @@ class input:
                  depositionOverride = None,
                  velocityMaxForEfficiency   = 0.1,
                  depositionMode = "KasenBarnes",
-                 depfactor      = None
+                 depfactor      = None, 
+                 photonRecycling = False,
                  ):        
 
         #Boring transfer of memory. 
@@ -36,3 +37,4 @@ class input:
         self.velocityMaxForEfficiency   = velocityMaxForEfficiency
         self.depositionMode             = depositionMode.lower() 
         self.depfactor                  = depfactor
+        self.photonRecycling            = photonRecycling

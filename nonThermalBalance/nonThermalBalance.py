@@ -73,7 +73,7 @@ class nonThermalBalance:
         self.imposedElectronDensityRecombination = input.imposedElectronDensityRecombination
         self.outfile                             = open(f'pynt-balance-{outfile_suffix}.out','w')
         self.depfactor                           = input.depfactor
-        
+        self.photonRecycling                     = input.photonRecycling
         
         #i.e if 1+ is our max ion, we have 0+ and 1+ included in the model.
         #but this is only ONE reaction we need to keep track of.
@@ -99,7 +99,9 @@ class nonThermalBalance:
         counter = 0 
         for ii in range(0,self.numberOfElements):
             for jj in range(0,self.numRatesPerElement):
+                
                 axelrodrate = RRAxelrodTotal(self.thermalElectronTemperature,jj+1)
+                
                 if self.pathsOfRecombinationData[counter] == None:
                     rate = axelrodrate
                     self.outfile.write(f'no recomb data  found for {self.listOfAtomicNumbers[ii],jj+1} - using Axelrod rate of {rate:10.2e}\n')
@@ -249,7 +251,9 @@ class nonThermalBalance:
             
             thisBalance = ionizationBalance(
                 self.ionizationRates[:,aa], 
-                self.electronDensityForIonization * self.recombinationRatesCoefficient[:,aa],Z
+                self.electronDensityForIonization * self.recombinationRatesCoefficient[:,aa],
+                Z, 
+                self.photonRecycling
                 )[0:stride]
             
             self.balance[aa * stride : (aa+1) * stride ]     = thisBalance * self.elementNumberDensities[aa]

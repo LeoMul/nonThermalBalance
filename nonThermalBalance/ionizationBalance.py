@@ -1,10 +1,10 @@
 
 import numpy as np 
 from photonRecycling import * 
-from constants import PHI_R_DEFAULT, IONBALANCE_NORM_TOLERANCE
+from constants import *
 MAX_PHOTO_ITER = 20 #max iter for self-photoionization.
 
-def ionizationBalance(ionization_rates, recombination_rates,atomicNumber,pi_thresholds=None, phi_r = PHI_R_DEFAULT, verbose = True, photonRecycling=True):
+def ionizationBalance(ionization_rates, recombination_rates,atomicNumber, photonRecycling=True,pi_thresholds=None, phi_r = PHI_R_DEFAULT, verbose = True):
     ''' 
     Coronal ionization balance. 
     I.e - only consider:
@@ -18,16 +18,45 @@ def ionizationBalance(ionization_rates, recombination_rates,atomicNumber,pi_thre
 
     populations = ionizationBalanceForwardIter(ionization_rates, recombination_rates,atomicNumber)
     
+    #hack, for now
+    
+    PICrossList = []
+
+    ll = ['/Users/leomulholland/CePaper/PIData/CeI/xout1','/Users/leomulholland/CePaper/PIData/CeII/xout1','/Users/leomulholland/CePaper/PIData/CeIII/xout1','/Users/leomulholland/CePaper/PIData/CeIV/xout1','/Users/leomulholland/CePaper/PIData/CeV/xout1']
+    ionizationPotentials = np.zeros(5) * u.eV
+    counter = 0
+    for l in ll:
+        PICross = np.loadtxt(l,usecols=(1,2))
+        PICross[:,0] = (PICross[:,0] * u.rydberg).to("eV")
+        ionizationPotentials[counter] = PICross[0,0] * u.eV
+        PICross[:,1] = PICross[:,1] * 1e-18 * u.cm * u.cm
+        PICrossList.append(PICross)
+        counter += 1 
+    pi_thresholds = np.zeros([5,5]) * u.cm * u.cm
+    from scipy.interpolate import interp1d
+    for ii in range(0,5):
+        PICross = PICrossList[ii]
+        thisCrossInterp = interp1d(PICross[:,0], PICross[:,1]) 
+        for jj in range(ii,5):
+
+
+            pi_thresholds[ii,jj] = thisCrossInterp(ionizationPotentials[jj])* u.cm * u.cm
+    
+    #print(pi_thresholds)
+    
+    
+    
     if (photonRecycling and (pi_thresholds is None)):
         print("Warning, photonRecycling is on but I have no PI data. Setting all PI cross sections to 1 Mb = 1e-18 cm^2.")
         nst = len(populations)
         pi_thresholds = np.zeros([nst,nst]) * u.cm**2
         for ii in range(0,nst):
             for jj in range(ii,nst):
-                pi_thresholds[ii,jj] = 1e-18 * u.cm ** 2
+                pi_thresholds[ii,jj] = PI_CROSS_THRESH_CM2_DEFAULT * u.cm ** 2
     
         
     populationsNoPhoto  = populations.copy()
+    
     if photonRecycling:
         for _ in range(0, MAX_PHOTO_ITER):
             pij = pijAxelrod(populations, pi_thresholds, phi_r)
@@ -49,12 +78,17 @@ def ionizationBalance(ionization_rates, recombination_rates,atomicNumber,pi_thre
 
 
 def ionizationBalanceForwardIter(ionization_rates, recombination_rates,atomicNumber, pij = None, f_prev = None):
-    """
-    Evaluates the explicit update step for the ionization balance based on the 
-    user's physics equation using an upward/forward generation scheme.
+    ''' 
+    Coronal ionization balance. 
+    I.e - only consider:
+        - ionization    out of ground into all adjacent states
+        - recombination out of ground into all adjacent states
     
-    This ensures that population fractions remain strictly positive-definite.
-    """
+    ionization_rates   [i] = rate of ionization    from i   to i+1 
+    recombination_rates[i] = rate of recombination from i+1 to i    
+    
+    '''    
+    
     N = len(ionization_rates)
     num_states = N + 1
     
