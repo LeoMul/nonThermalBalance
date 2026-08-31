@@ -3,22 +3,42 @@ class input:
     Class for input, read from json.
     '''
     def __init__(self,
-                 listOfAtomicNumbers=[],
+                 #data and elements
+                 listOfAtomicNumbers=[],        
                  pathsOfRecombinationData=[],
                  massesOfElements=[],
-                 thermalElectronTemperature = None,
+                 maxIonizationPlus      = 6,
+                 
+                 #for scaling deposition to the entire ejecta if necessary.
+                 massAllEjecta = None,     
+                 averageAtomicMass  = 140,
+                 
+                 # plasma parameters
+                 thermalElectronTemperature = None, 
                  imposedElectronDensitySF    = None,
                  imposedElectronDensityRecombination    = None,
-                 velocityExpansionC = None,
+                 
+                 # transient properties.
+                 velocityExpansionC = None,         
                  timeSinceExplosionDays = None, 
+                 
+                 #deposition:
+                 depositionMode = "artis",
+                 depfactor      = None,  #override this deposition by factor...
+                 depositionOverride = None, #override this deposition to a number
+                 
+                 #Should I iterate?
                  selfConsistent = False,
-                 averageAtomicMass  = 140,
-                 maxIonizationPlus      = 6,
-                 depositionOverride = None,
-                 velocityMaxForEfficiency   = 0.1,
-                 depositionMode = "KasenBarnes",
-                 depfactor      = None, 
+                 
+                 #photon recycling
                  photonRecycling = False,
+                 phi_r           = 0.0, 
+                 
+                 #Kasen-Barnes paramter
+                 velocityMaxForEfficiency   = 0.1,
+                 
+                 
+
                  ):        
 
         #Boring transfer of memory. 
@@ -38,3 +58,5 @@ class input:
         self.depositionMode             = depositionMode.lower() 
         self.depfactor                  = depfactor
         self.photonRecycling            = photonRecycling
+        self.phi_r                      = phi_r
+        self.massAllEjecta              = massAllEjecta

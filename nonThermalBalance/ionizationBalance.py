@@ -2,9 +2,16 @@
 import numpy as np 
 from photonRecycling import * 
 from constants import *
-MAX_PHOTO_ITER = 20 #max iter for self-photoionization.
+MAX_PHOTO_ITER = 200 #max iter for self-photoionization.
 
-def ionizationBalance(ionization_rates, recombination_rates,atomicNumber, photonRecycling=True,pi_thresholds=None, phi_r = PHI_R_DEFAULT, verbose = True):
+def ionizationBalance(ionization_rates, 
+                      recombination_rates,
+                      atomicNumber, 
+                      photonRecycling=True,
+                      pi_thresholds=None, 
+                      phi_r = PHI_R_DEFAULT, 
+                      verbose = False, 
+                      columndensity=np.inf * u.cm**2):
     ''' 
     Coronal ionization balance. 
     I.e - only consider:
@@ -22,7 +29,12 @@ def ionizationBalance(ionization_rates, recombination_rates,atomicNumber, photon
     
     PICrossList = []
 
-    ll = ['/Users/leomulholland/CePaper/PIData/CeI/xout1','/Users/leomulholland/CePaper/PIData/CeII/xout1','/Users/leomulholland/CePaper/PIData/CeIII/xout1','/Users/leomulholland/CePaper/PIData/CeIV/xout1','/Users/leomulholland/CePaper/PIData/CeV/xout1']
+    ll = ['/Users/leomulholland/CePaper/PIData/CeI/xout1',
+          '/Users/leomulholland/CePaper/PIData/CeII/xout1',
+          '/Users/leomulholland/CePaper/PIData/CeIII/xout1',
+          '/Users/leomulholland/CePaper/PIData/CeIV/xout1',
+          '/Users/leomulholland/CePaper/PIData/CeV/xout1']
+    
     ionizationPotentials = np.zeros(5) * u.eV
     counter = 0
     for l in ll:
@@ -32,7 +44,9 @@ def ionizationBalance(ionization_rates, recombination_rates,atomicNumber, photon
         PICross[:,1] = PICross[:,1] * 1e-18 * u.cm * u.cm
         PICrossList.append(PICross)
         counter += 1 
+#
     pi_thresholds = np.zeros([5,5]) * u.cm * u.cm
+#
     from scipy.interpolate import interp1d
     for ii in range(0,5):
         PICross = PICrossList[ii]
@@ -41,11 +55,7 @@ def ionizationBalance(ionization_rates, recombination_rates,atomicNumber, photon
 
 
             pi_thresholds[ii,jj] = thisCrossInterp(ionizationPotentials[jj])* u.cm * u.cm
-    
-    #print(pi_thresholds)
-    
-    
-    
+#
     if (photonRecycling and (pi_thresholds is None)):
         print("Warning, photonRecycling is on but I have no PI data. Setting all PI cross sections to 1 Mb = 1e-18 cm^2.")
         nst = len(populations)
@@ -58,10 +68,15 @@ def ionizationBalance(ionization_rates, recombination_rates,atomicNumber, photon
     populationsNoPhoto  = populations.copy()
     
     if photonRecycling:
-        for _ in range(0, MAX_PHOTO_ITER):
-            pij = pijAxelrod(populations, pi_thresholds, phi_r)
-            
+        for ii in range(0, MAX_PHOTO_ITER):
+            populationsOld = populations.copy()
+            pij = pijAxelrod(populations, pi_thresholds, phi_r,coldens=columndensity)
             populations = ionizationBalanceForwardIter(ionization_rates, recombination_rates,atomicNumber,pij, populations)
+            
+            if (np.all( np.abs(populations-populationsOld)/populations) < 1e-4 ):
+                if verbose: 
+                    print('{} iters taken'.format(ii+1))
+                break
 
 
     if verbose:
@@ -98,6 +113,8 @@ def ionizationBalanceForwardIter(ionization_rates, recombination_rates,atomicNum
     # Set the ground state (neutral fraction) as our relative baseline
     f_new[0] = 1.0
     
+    if f_prev is not None:
+        print('hello', len(f_prev), len(f_new))
 
     for i in range(0,N):
         # Calculate the photoionization loss field from higher states
@@ -107,7 +124,11 @@ def ionizationBalanceForwardIter(ionization_rates, recombination_rates,atomicNum
             #
             pii = pij[i, i]
             #
-            for j in range(i + 1, N-1):
+            for j in range(i + 1, N):
+                #import sys
+                #print(' potential bug in this loop - check boundaries!') 
+                #sys.exit()
+                
                 photo_field += pij[i, j] * recombination_rates[j] * f_prev[j + 1]
             #    
             photo_field/= f_prev[i]
@@ -137,8 +158,8 @@ def ionizationBalanceForwardIter(ionization_rates, recombination_rates,atomicNum
     
     if (norm / normOld -1 > IONBALANCE_NORM_TOLERANCE):
         import sys
-        print('Ionization balance norm is not converged, consider adding more ionization stages.') 
-        sys.exit()
+        print('Ionization balance norm is not converged, consider adding more ionization stages.',normOld,norm) 
+        #sys.exit()
     
     
     totalarray = np.array(totalarray)

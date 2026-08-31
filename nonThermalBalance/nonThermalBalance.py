@@ -2,7 +2,13 @@ import sys
 import os 
 
 #hack to use my fork of pynonthermal - 
-MODULE_PATH = os.path.abspath("/Users/leomulholland/pynonthermal-fork/")
+usemypynt = False
+if usemypynt:
+
+    MODULE_PATH = os.path.abspath("/Users/leomulholland/pynonthermal-fork/")
+
+else:
+    MODULE_PATH = os.path.abspath("/Users/leomulholland/pynonthermal/")
 
 if MODULE_PATH not in sys.path:
     sys.path.insert(0, MODULE_PATH)
@@ -12,7 +18,7 @@ import pynonthermal
 
 import numpy as np 
 from astropy import units as u
-from astropy import constants 
+from astropy import constants as c
 import periodictable
 from scipy.interpolate import interp1d
 from input import input
@@ -74,7 +80,8 @@ class nonThermalBalance:
         self.outfile                             = open(f'pynt-balance-{outfile_suffix}.out','w')
         self.depfactor                           = input.depfactor
         self.photonRecycling                     = input.photonRecycling
-        
+        self.phi_r                               = input.phi_r
+        self.massAllEjecta                       = input.massAllEjecta
         #i.e if 1+ is our max ion, we have 0+ and 1+ included in the model.
         #but this is only ONE reaction we need to keep track of.
         self.numberIonStagesPerElement = self.maxIonizationPlus + 1 
@@ -131,21 +138,27 @@ class nonThermalBalance:
         self.elementNumberDensities = np.zeros(self.numberOfElements)
         self.elementMassDensities   = np.zeros(self.numberOfElements)
 
-        self.nparticles = np.zeros(self.numberOfElements)
 
-        self.expansion_volume = 0.0
+        
+        self._calcExpansionVolume()
+        
+        
+        
         for ii in range(0,self.numberOfElements):
-            #this function call should be a method instead, too many arrays being modified manually.
-            self.elementNumberDensities[ii],self.elementMassDensities[ii],self.nparticles [ii],self.expansion_volume = elementDensity(
-                self.listOfAtomicNumbers[ii],
-                self.massesOfElements[ii],
-                self.velocityExpansionC,
-                self.timeSinceExplosionDays
-            )
+            thisElementMass = self.massesOfElements[ii] * u.Msun
+            thisElementNuclearMass = periodictable.elements[self.listOfAtomicNumbers[ii]].mass * u.u
+            self.elementNumberDensities[ii], self.elementMassDensities[ii] = self._calcElementDensity(thisElementMass, thisElementNuclearMass)
             
+        #Notably this is the total of those including in this codes solution - not the ejecta.
         self.elementNumberDensityTotal = self.elementNumberDensities.sum()
         self.elementMassDensityTotal   = self.elementMassDensities  .sum()
-
+        
+        self.numberDensityAllEjecta = self. elementNumberDensityTotal.copy() 
+        
+        if self.massAllEjecta is not None:
+            self.numberDensityAllEjecta, _  = self._calcElementDensity(self.massAllEjecta * u.Msun, self.averageAtomicMass * u.u)
+        
+        
         stride = self.numberIonStagesPerElement
         
         for ii in range(0,self.numberOfElements):
@@ -220,23 +233,58 @@ class nonThermalBalance:
         ROOT_DIR = Path(__file__).parent
         TEXT_FILE = ROOT_DIR /'artisdata.dat'
         artisdata = np.loadtxt(TEXT_FILE)
-        logdays      = np.log10( artisdata[:, 0] )
-        logdep_per_g = np.log10( artisdata[:,-1] )
+        
+        logdays        = np.log10( artisdata[:, 0] )
+        logdep_per_ion = np.log10( artisdata[:, 2] )
+        
         from scipy.interpolate import interp1d
-        interp = interp1d(logdays,logdep_per_g)
-        self.depPerGram = 10 ** interp(np.log10(self.timeSinceExplosionDays))
-        self.depositionratedensity_ev = self.depPerGram * self.elementMassDensityTotal
+        interp = interp1d(logdays,logdep_per_ion)
+        
+        self.depPerIon= 10 ** interp(np.log10(self.timeSinceExplosionDays))
+        
+        self.depositionratedensity_ev = self.depPerIon * self.numberDensityAllEjecta
+        
+        self.outfile.write(f'   Using ARTIS deposition {self.depositionratedensity_ev:10.3e} eV/s/cm3 = {self.depPerIon:10.3e} eV/s * {self.numberDensityAllEjecta:10.3e}/cm3 \n')
+        
+        #gram_int = interp1d(logdays, np.log10(artisdata[:, -1]) )
+        #logdep_per_gram  = 10 ** ( gram_int(np.log10(self.timeSinceExplosionDays)) ) 
+        #print(logdep_per_gram)
+        #self.outfile.write(f'{logdep_per_gram * self.elementMassDensityTotal * 5e-2/1e-4 :10.3e}\n')
+        #self.depositionratedensity_ev = logdep_per_gram * self.elementMassDensityTotal * 5e-2/1e-4 
         ff = 1.0 
         if self.depfactor is not None:
             ff = self.depfactor
             self.outfile.write(f'   Multipyling by factor: {ff} \n')
             self.depositionratedensity_ev *= ff 
             
-        print(self.depPerGram,self.elementMassDensityTotal,ff,self.depositionratedensity_ev)
+        #print(self.depPerGram,self.elementMassDensityTotal,ff,self.depositionratedensity_ev)
 
         return None 
     
+    
+    
+    def _calcExpansionVolume(self):
+        fourthirdspi = 4.0 * np.pi  / 3.0
+        self.expansion_volume = fourthirdspi * (self.velocityExpansionC * c.c * self.timeSinceExplosionDays * u.d) ** 3 
+        self.expansion_volume = self.expansion_volume.to('cm(3)')
+        return None 
+        
+    
+    def _calcElementDensity(self,ionMass, nuclearMass): 
+        
+        #Can probably implement this a bit better 
+        assert (ionMass.unit     == u.Msun)
+        assert (nuclearMass.unit == u.u)
+        
+        nparticles = (ionMass / nuclearMass).to('') 
+        
+        numberDensity = (nparticles / self.expansion_volume).to('cm(-3)')
+        massDensity   =  (ionMass / self.expansion_volume).to('g cm(-3)')
+        print(numberDensity)
+        return numberDensity.value, massDensity.value
 
+    
+    
     
     def ionIter(self):
         '''
@@ -248,14 +296,15 @@ class nonThermalBalance:
         self.actualElectronDensity = 0.0 
     
         for aa,Z in enumerate(self.listOfAtomicNumbers):
-            
+            #print(self.velocityExpansionC,self.timeSinceExplosionDays,self.elementNumberDensities[aa] )
+            columnDensity = (self.velocityExpansionC * c.c * self.timeSinceExplosionDays *u.day * self.elementNumberDensities[aa] * u.cm**-3).to('cm(-2)')
+            print('col dens = ',columnDensity)
             thisBalance = ionizationBalance(
                 self.ionizationRates[:,aa], 
                 self.electronDensityForIonization * self.recombinationRatesCoefficient[:,aa],
                 Z, 
-                self.photonRecycling
+                self.photonRecycling, columndensity = columnDensity,phi_r=self.phi_r
                 )[0:stride]
-            
             self.balance[aa * stride : (aa+1) * stride ]     = thisBalance * self.elementNumberDensities[aa]
             
             self.actualElectronDensity += np.sum ( np.arange(0,self.numberIonStagesPerElement,1,dtype=int) * thisBalance * self.elementNumberDensities[aa])
@@ -342,6 +391,11 @@ class nonThermalBalance:
             self.sf.solve(depositionratedensity_ev = self.depositionratedensity_ev)
             self.electronDensity = self.sf.calculate_free_electron_density()
 
+        #if self.imposedElectronDensitySF  is not None:
+        #    self.outfile('Using imposed electron density ')
+        
+        self.outfile.write("Using deposition {:10.2e} eV/s/cm3\n".format(self.depositionratedensity_ev))
+        
         #Call to analysis - I don't know what this does but it seems necessary. 
         #print(' Entering Analyse')
         self.sf.analyse_ntspectrum()
@@ -373,7 +427,7 @@ class nonThermalBalance:
         if self.imposedElectronDensityRecombination is None:
             self.imposedElectronDensityRecombination = 0.0
             
-        header = '{:13.7e} {:13.7e} {:13.7e} {:13.7e} {:13.7e} {:13.7e} {:13.7e} {:13.7e} {:13.7e}\n'.format(
+        header = '{:13.7e} {:13.7e} {:13.7e} {:13.7e} {:13.7e} {:13.7e} {:13.7e} {:13.7e} {:13.7e} {:13.7e}\n'.format(
                                     self.thermalElectronTemperature,
                                     self.imposedElectronDensitySF,
                                     self.imposedElectronDensityRecombination,
@@ -382,7 +436,8 @@ class nonThermalBalance:
                                     self.velocityExpansionC,
                                     self.depositionratedensity_ev,
                                     self.elementMassDensityTotal,
-                                    sum(self.massesOfElements)
+                                    sum(self.massesOfElements),
+                                    self.phi_r
                                     )
         file.write(header)
         header      = '#Sym,  ATN,CODE,   z+,    EffIonPot,   IonRateOut,    RecRateIn,   FracOfElem,   Mass(Msun) \n'
