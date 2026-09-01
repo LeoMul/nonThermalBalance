@@ -11,7 +11,8 @@ def ionizationBalance(ionization_rates,
                       pi_thresholds=None, 
                       phi_r = PHI_R_DEFAULT, 
                       verbose = False, 
-                      columndensity=np.inf * u.cm**2):
+                      columndensity=np.inf * u.cm**2,
+                      writebuffer = None):
     ''' 
     Coronal ionization balance. 
     I.e - only consider:
@@ -72,7 +73,8 @@ def ionizationBalance(ionization_rates,
             populationsOld = populations.copy()
             pij = pijAxelrod(populations, pi_thresholds, phi_r,coldens=columndensity)
             populations = ionizationBalanceForwardIter(ionization_rates, recombination_rates,atomicNumber,pij, populations)
-            
+            if writebuffer is not None: 
+                writebuffer.write('     Photon recycling iter: {}'.format(ii))
             if (np.all( np.abs(populations-populationsOld)/populations) < 1e-4 ):
                 if verbose: 
                     print('{} iters taken'.format(ii+1))
@@ -113,8 +115,8 @@ def ionizationBalanceForwardIter(ionization_rates, recombination_rates,atomicNum
     # Set the ground state (neutral fraction) as our relative baseline
     f_new[0] = 1.0
     
-    if f_prev is not None:
-        print('hello', len(f_prev), len(f_new))
+    #if f_prev is not None:
+    #    print('hello', len(f_prev), len(f_new))
 
     for i in range(0,N):
         # Calculate the photoionization loss field from higher states
@@ -158,7 +160,7 @@ def ionizationBalanceForwardIter(ionization_rates, recombination_rates,atomicNum
     
     if (norm / normOld -1 > IONBALANCE_NORM_TOLERANCE):
         import sys
-        print('Ionization balance norm is not converged, consider adding more ionization stages.',normOld,norm) 
+        #print('Ionization balance norm is not converged, consider adding more ionization stages.',normOld,norm) 
         #sys.exit()
     
     

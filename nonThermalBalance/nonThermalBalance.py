@@ -93,6 +93,16 @@ class nonThermalBalance:
         #sanity checks on input data. 
         assert( len(input.massesOfElements)         == self.numberOfElements)
         assert( len(input.pathsOfRecombinationData) == self.numberOfElements * input.maxIonizationPlus)
+        
+        self.massesOfElements = np.array([ * self.massesOfElements]) #make a numpy array
+        
+        self.massFractions = None
+        self.massFractionsTotal = None
+        if self.massAllEjecta is not None:
+            self.massFractions  = self.massesOfElements / self.massAllEjecta
+            self.massFractionsTotal = np.sum ( self.massFractions)
+        #self.massFraction = []
+        
         self.electronDensity = self.imposedElectronDensitySF
         self._setRecombinationRates()
         self._setInitialIonizationBalance()        
@@ -137,12 +147,11 @@ class nonThermalBalance:
         #Need total matter density for injection later.
         self.elementNumberDensities = np.zeros(self.numberOfElements)
         self.elementMassDensities   = np.zeros(self.numberOfElements)
+        
 
 
         
         self._calcExpansionVolume()
-        
-        
         
         for ii in range(0,self.numberOfElements):
             thisElementMass = self.massesOfElements[ii] * u.Msun
@@ -155,10 +164,8 @@ class nonThermalBalance:
         
         self.numberDensityAllEjecta = self. elementNumberDensityTotal.copy() 
         
-        if self.massAllEjecta is not None:
-            self.numberDensityAllEjecta, _  = self._calcElementDensity(self.massAllEjecta * u.Msun, self.averageAtomicMass * u.u)
-        
-        
+
+                
         stride = self.numberIonStagesPerElement
         
         for ii in range(0,self.numberOfElements):
@@ -170,10 +177,40 @@ class nonThermalBalance:
         for aa,zz in enumerate(self.listOfAtomicNumbers):
             self.outfile.write(f'{zz:3} {self.elementNumberDensities[aa]:10.2e}\n')
         
+        if self.massAllEjecta is not None:
+            self.numberDensityAllEjecta, _  = self._calcElementDensity(self.massAllEjecta * u.Msun, self.averageAtomicMass * u.u)
+            self.outfile.write('Artificial total ejecta density:\n')
+            self.outfile.write(f'    {self.numberDensityAllEjecta:10.2e}\n')
+            
+            if self.numberDensityAllEjecta < self.elementNumberDensityTotal:
+                self.outfile.write('stop: self.numberDensityAllEjecta < self.elementNumberDensityTotal\n ')
+                import sys 
+                sys.exit()
+            
         self.balance     = self.initBalance.copy()
         self.ionFraction = self.initFraction.copy()
+        self._calcElectronDensity()    
+
         return None 
+        
+    
+    def _calcElectronDensity(self):
+        stride = self.numberIonStagesPerElement
+        self.actualElectronDensity = 0.0
+        self.electronDensityScaledToArtificialTotalMass = 0.0
+        for aa in range(0,self.numberOfElements):
             
+            thisConstribution = np.sum ( np.arange(0,self.numberIonStagesPerElement,1,dtype=int) * self.balance[aa * stride : (aa+1) * stride ] )
+            
+            self.actualElectronDensity += thisConstribution
+            
+            self.electronDensityScaledToArtificialTotalMass += thisConstribution / self.massFractions[aa]
+
+        print(self.electronDensityScaledToArtificialTotalMass, self.electronDensityScaledToArtificialTotalMass/self.actualElectronDensity)
+        
+        return None     
+    
+
     def _setDepositionRateDensity(self):
         
         '''
@@ -290,32 +327,31 @@ class nonThermalBalance:
         '''
         another dumb method - should probably be removed or at the very least refactored
         '''
-        
+        self.outfile.write(f'       Ionization iteration, using electron density = {self.electronDensityForIonization:10.3e}\n')
         stride = self.numberIonStagesPerElement
-        
-        self.actualElectronDensity = 0.0 
     
         for aa,Z in enumerate(self.listOfAtomicNumbers):
             #print(self.velocityExpansionC,self.timeSinceExplosionDays,self.elementNumberDensities[aa] )
-            columnDensity = (self.velocityExpansionC * c.c * self.timeSinceExplosionDays *u.day * self.elementNumberDensities[aa] * u.cm**-3).to('cm(-2)')
-            print('col dens = ',columnDensity)
+            columnDensity = (self.velocityExpansionC * c.c * self.timeSinceExplosionDays * u.day * self.elementNumberDensities[aa] * u.cm**-3).to('cm(-2)')
+            #print('col dens = ',columnDensity)
+            
             thisBalance = ionizationBalance(
                 self.ionizationRates[:,aa], 
                 self.electronDensityForIonization * self.recombinationRatesCoefficient[:,aa],
                 Z, 
-                self.photonRecycling, columndensity = columnDensity,phi_r=self.phi_r
+                self.photonRecycling, columndensity = columnDensity,phi_r=self.phi_r,writebuffer=self.outfile
                 )[0:stride]
+            
             self.balance[aa * stride : (aa+1) * stride ]     = thisBalance * self.elementNumberDensities[aa]
-            
-            self.actualElectronDensity += np.sum ( np.arange(0,self.numberIonStagesPerElement,1,dtype=int) * thisBalance * self.elementNumberDensities[aa])
-            
             self.ionFraction[aa * stride : (aa+1) * stride ] = thisBalance 
+            
+        self._calcElectronDensity()
         
         return None 
     
     def calcNewionizationBalance(self):
         #Calculate a new Ionization balance.
-        self.balanceOld = self.balance.copy()
+        self.balanceOld     = self.balance.copy()
         self.ionFractionOld = self.ionFraction.copy() 
         
         #set the e dense for the ionization balance.
@@ -327,6 +363,12 @@ class nonThermalBalance:
         self.outfile.write(f'Calculating Ionization Balance, using initial electron density {self.electronDensityForIonization:10.2e}\n')
 
         self.ionIter()
+        
+        if self.imposedElectronDensityRecombination is None:            
+            for ii in range(0,10):
+                self.electronDensityForIonization = self.actualElectronDensity
+                self.ionIter()
+        
 
         self.outfile.write('Ionization iteration: \n')
         self.outfile.write(f' Electrons contributed by the part of the gas is: mycalc (afterThisIter): {self.actualElectronDensity:10.2e} pynt (before): {self.electronDensityPYNT:10.2e}\n')
@@ -334,7 +376,7 @@ class nonThermalBalance:
         
         
         counter = 0 
-        self.outfile.write('AN Charge  FracBefore FracAfter  %Change\n')
+        self.outfile.write('AN Charge  FracBefore FracAfter  %Change    EffPotEV\n')
         for aa,atomicnumber in enumerate(self.listOfAtomicNumbers):
             for ii in range(0,self.numberIonStagesPerElement):
                 cc = (self.ionFractionOld[counter]-self.ionFraction[counter])/self.ionFractionOld[counter]
@@ -388,7 +430,7 @@ class nonThermalBalance:
         if self.imposedElectronDensitySF is not None:
             self.sf.solve(depositionratedensity_ev = self.depositionratedensity_ev ,override_n_e=self.imposedElectronDensitySF)
         else:
-            self.sf.solve(depositionratedensity_ev = self.depositionratedensity_ev)
+            self.sf.solve(depositionratedensity_ev = self.depositionratedensity_ev) #, override_n_e = self.actualElectronDensity / self.massFractionsTotal 
             self.electronDensity = self.sf.calculate_free_electron_density()
 
         #if self.imposedElectronDensitySF  is not None:
@@ -427,7 +469,7 @@ class nonThermalBalance:
         if self.imposedElectronDensityRecombination is None:
             self.imposedElectronDensityRecombination = 0.0
             
-        header = '{:13.7e} {:13.7e} {:13.7e} {:13.7e} {:13.7e} {:13.7e} {:13.7e} {:13.7e} {:13.7e} {:13.7e}\n'.format(
+        header = '{:13.7e} {:13.7e} {:13.7e} {:13.7e} {:13.7e} {:13.7e} {:13.7e} {:13.7e} {:13.7e} {:13.7e} {:13.7e}\n'.format(
                                     self.thermalElectronTemperature,
                                     self.imposedElectronDensitySF,
                                     self.imposedElectronDensityRecombination,
@@ -437,7 +479,8 @@ class nonThermalBalance:
                                     self.depositionratedensity_ev,
                                     self.elementMassDensityTotal,
                                     sum(self.massesOfElements),
-                                    self.phi_r
+                                    self.phi_r,
+                                    self.elementNumberDensityTotal
                                     )
         file.write(header)
         header      = '#Sym,  ATN,CODE,   z+,    EffIonPot,   IonRateOut,    RecRateIn,   FracOfElem,   Mass(Msun) \n'
@@ -537,20 +580,20 @@ def main():
                 nehistory.append(ntb.electronDensity)
                 #ntb.setNewBalanceDamped()
                 
-                if len(nehistory) == 3: 
-                    #Aitken Jump: 
-                    n0,n1,n2 = nehistory[-3:]
-                    
-                    dd = n2 - 2.0 * n1 + n0 
-                    if dd == 0: 
-                        print(n2,n1,n0)
-                        import sys 
-                        sys.exit()
-                    neNew = n2 - (n2 -n1)**2 / dd 
-                    ntb.electronDensity = neNew
-                    ntb.outfile.write(f'Aitken jump {n0:10.2e}{n1:10.2e}{n2:10.2e}{neNew:10.2e}\n')
-                    ntb.calcNewionizationBalance()
-                    nehistory = []
+                #if len(nehistory) == 3: 
+                #    #Aitken Jump: 
+                #    n0,n1,n2 = nehistory[-3:]
+                #    
+                #    dd = n2 - 2.0 * n1 + n0 
+                #    if dd == 0: 
+                #        print(n2,n1,n0)
+                #        import sys 
+                #        sys.exit()
+                #    neNew = n2 - (n2 -n1)**2 / dd 
+                #    ntb.electronDensity = neNew
+                #    ntb.outfile.write(f'Aitken jump {n0:10.2e}{n1:10.2e}{n2:10.2e}{neNew:10.2e}\n')
+                #    ntb.calcNewionizationBalance()
+                #    nehistory = []
                 ntb.checkConvergence()
 
                 if ntb.converged:

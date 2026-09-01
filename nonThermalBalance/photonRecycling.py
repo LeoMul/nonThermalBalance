@@ -17,7 +17,7 @@ import astropy.units as u
 from constants import PHI_R_DEFAULT
 
 def pijAxelrod(fractions, pi_thresholds, phi_r = PHI_R_DEFAULT , coldens = np.inf* u.cm**-2):
-    print('phi_r = ', phi_r)
+    #print('phi_r = ', phi_r)
     #Dimension of self-photoionizations possible
     nst = len(fractions) - 1 
     
